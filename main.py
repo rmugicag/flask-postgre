@@ -1,99 +1,75 @@
-from flask import request
-
-from flask import Flask
-from flask import jsonify
+from flask import Flask, render_template, request, redirect, url_for, session
+import re
 from config import config
 from models import db, User
+
+enviroment = config['development']
 
 
 def create_app(enviroment):
     app = Flask(__name__)
-
+    app.secret_key = "super secret key"
     app.config.from_object(enviroment)
-
     with app.app_context():
         db.init_app(app)
         db.create_all()
-
     return app
 
 
-enviroment = config['development']
-
 app = create_app(enviroment)
 
-app.route('/api/v1/users', methods=['GET'])
+
+@app.route('/')
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    msg = ''
+    if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
+        username = request.form['username']
+        password = request.form['password']
+        account = User.query.filter_by(email=username, password=password).first()
+        if account:
+            account = account.to_json()
+            session['loggedin'] = True
+            session['id'] = account['id']
+            session['username'] = account['email']
+            msg = 'Logged in successfully !'
+            return render_template('index.html', msg=msg)
+        else:
+            msg = 'Incorrect username / password !'
+    return render_template('login.html', msg=msg)
 
 
-def get_users():
-    response = {'message': 'success'}
-    return jsonify(response)
+@app.route('/logout')
+def logout():
+    session.pop('loggedin', None)
+    session.pop('id', None)
+    session.pop('username', None)
+    return redirect(url_for('login'))
 
 
-@app.route('/api/v1/users', methods=['GET'])
-def get_users():
-    users = [user.json() for user in User.query.all()]
-    return jsonify({'users': users})
-
-
-@app.route('/api/v1/users/<id>', methods=['GET'])
-def get_user(id):
-    user = User.query.filter_by(id=id).first()
-    if user is None:
-        return jsonify({'message': 'User does not exists'}), 404
-
-    return jsonify({'user': user.json()})
-
-
-@app.route('/api/v1/users/', methods=['POST'])
-def create_user():
-    json = request.get_json(force=True)
-
-    print(json)
-
-    if json.get('username') is None:
-        return jsonify({'message': 'Bad request'}), 400
-
-    user = User.create(json['username'])
-
-    return jsonify({'user': user.json()})
-
-
-@app.route('/api/v1/users/<id>', methods=['PUT'])
-def update_user(id):
-    user = User.query.filter_by(id=id).first()
-    if user is None:
-        return jsonify({'message': 'User does not exists'}), 404
-
-    json = request.get_json(force=True)
-    if json.get('username') is None:
-        return jsonify({'message': 'Bad request'}), 400
-
-    user.username = json['username']
-
-    user.update()
-
-    return jsonify({'user': user.json()})
-
-
-@app.route('/api/v1/users/<id>', methods=['DELETE'])
-def delete_user(id):
-    user = User.query.filter_by(id=id).first()
-    if user is None:
-        return jsonify({'message': 'User does not exists'}), 404
-
-    user.delete()
-
-    return jsonify({'user': user.json()})
-
-
-
-def decorator_name(function):
-    def wrap(*args, **kwargs):
-        return function(*args, **kwargs)
-
-    wrap.__name__ = function.__name__
-    return wrap
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    msg = ''
+    if request.method == 'POST' and 'username' in request.form and 'password' in request.form and 'email' in request.form:
+        username = request.form['username']
+        password = request.form['password']
+        email = request.form['email']
+        account = User.query.filter_by(email=email).first()
+        if account:
+            msg = 'Account already exists !'
+        elif not re.match(r'[^@]+@[^@]+\.[^@]+', email):
+            msg = 'Invalid email address !'
+        elif not re.match(r'[A-Za-z0-9]+', username):
+            msg = 'Username must contain only characters and numbers !'
+        elif not username or not password or not email:
+            msg = 'Please fill out the form !'
+        else:
+            User.create({"name": username,
+                         "password": password,
+                         "email": email})
+    elif request.method == 'POST':
+        msg = 'Please fill out the form !'
+    return render_template('register.html', msg=msg)
 
 
 if __name__ == '__main__':

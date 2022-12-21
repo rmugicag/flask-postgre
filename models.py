@@ -8,18 +8,20 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(50), nullable=False)
+    password = db.Column(db.String(), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
     created_at = db.Column(db.DateTime(), nullable=False, default=db.func.current_timestamp())
 
     @classmethod
-    def create(cls, username):
-        user = User(username=username)
-        return user.save()
-
+    def create(cls, user):
+        new_user = User(email=user["email"],
+                        password=user["password"],
+                        name=user["name"])
+        return new_user.save()
 
     def update(self):
         self.save()
-
 
     def save(self):
         try:
@@ -30,7 +32,6 @@ class User(db.Model):
         except:
             return False
 
-
     def delete(self):
         try:
             db.session.delete(self)
@@ -40,10 +41,11 @@ class User(db.Model):
         except:
             return False
 
-
-    def json(self):
+    def to_json(self):
         return {
-            'id': self.id,
-            'username': self.username,
-            'created_at': self.created_at
+            "id": self.id,
+            "email": self.email,
+            "password": self.password,
+            "name": self.name,
+            "created_at": self.created_at
         }
